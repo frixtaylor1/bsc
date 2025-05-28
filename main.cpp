@@ -62,10 +62,12 @@ typedef int32              word;
 #define $i (int *)
 #define $v (void *)
 
+int main(int, const char**);
+
 #endif // {projectName}_HPP)";
 
 static Str sourceTemplate = R"(
-#include "{projectName}.hpp"
+#include "../include/{projectName}.hpp"
 #include <iostream>
 
 int main(int argc, const char *argv[]) {
