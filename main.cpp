@@ -1,4 +1,6 @@
+#include <cerrno>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -8,14 +10,6 @@
 
 typedef std::string Str;
 
-#define safe_create_file(filePath, content)                                    \
-  std::ofstream file(filePath);                                                \
-  if (!file.is_open()) {                                                       \
-    std::cerr << "Error creating file: " << filePath << "\n";                  \
-    return;                                                                    \
-  }                                                                            \
-  file << content;                                                             \
-  file.close();
 
 static Str makefileTemplate = R"(
 CXX = g++
@@ -48,7 +42,7 @@ clean:
 
 .PHONY: all build clean run)";
 
-static Str entryPointFileHeader = R"(
+static Str headerTemplate = R"(
 #ifndef {projectName}_HPP
 #define {projectName}_HPP
 
@@ -70,14 +64,24 @@ typedef int32              word;
 
 #endif // {projectName}_HPP)";
 
-static Str entryPointFileSource = R"(
-#include "../include/{projectName}.hpp"
+static Str sourceTemplate = R"(
+#include "{projectName}.hpp"
 #include <iostream>
 
 int main(int argc, const char *argv[]) {
-  std::cout << "Hello world from {projectName}!." << std::endl;
+  std::cout << "Project {projectName} started successfully." << std::endl;
   return 0;
 })";
+
+void safe_create_file(const Str &filePath, const Str &content) {
+  std::ofstream file(filePath);
+  if (!file.is_open()) {
+    std::cerr << "Error creating file: " << filePath << "\n";
+    return;
+  }
+  file << content;
+  file.close();
+}
 
 void replace_sub_str(Str &dest, const Str &oldSubstring,
                      const Str &newSubstring) {
@@ -90,42 +94,33 @@ void replace_sub_str(Str &dest, const Str &oldSubstring,
 
 void create_directory(const Str &path) {
   if (mkdir(path.c_str(), 0755) != 0) {
-    std::cerr << "No se pudo crear el directorio (puede que ya exista): "
-              << path << '\n';
+    if (errno != EEXIST) {
+      std::cerr << "Error creating directory '" << path
+                << "': " << strerror(errno) << "\n";
+      exit(EXIT_FAILURE);
+    }
   }
 }
 
-void build_root_directory(const Str &path) { create_directory(path); }
-
-void build_source_directory(const Str &path) {
-  create_directory(path + "/src");
-}
-
-void build_include_directory(const Str &path) {
-  create_directory(path + "/include");
-}
-
-void build_make_file(const Str &dir, const Str &projectName) {
-  Str content = makefileTemplate;
-  replace_sub_str(content, "{projectName}", projectName);
-  safe_create_file(dir + "/Makefile", content);
-}
-
-void build_entry_point_header(const Str &dir, const Str &projectName) {
-  Str content = entryPointFileHeader;
-  replace_sub_str(content, "{projectName}", projectName);
-  safe_create_file(dir + "/include/" + projectName + ".hpp", content);
-}
-
-void build_entry_point_source(const Str &dir, const Str &projectName) {
-  Str content = entryPointFileSource;
-  replace_sub_str(content, "{projectName}", projectName);
-  safe_create_file(dir + "/src/" + projectName + ".cpp", content);
+bool validate_project_name(const Str &name) {
+  if (name.empty()) {
+    std::cerr << "Project name cannot be empty.\n";
+    return false;
+  }
+  if (name.find('/') != Str::npos || name.find('\\') != Str::npos) {
+    std::cerr << "Project name cannot contain '/' or '\\'.\n";
+    return false;
+  }
+  if (name == "." || name == "..") {
+    std::cerr << "Project name cannot be '.' or '..'.\n";
+    return false;
+  }
+  return true;
 }
 
 int main(int argc, const char *argv[]) {
   if (argc < 3) {
-    std::cerr << "Use: bs create <project_name>\n";
+    std::cerr << "Usage: bs create <project_name>\n";
     return EXIT_FAILURE;
   }
 
@@ -133,27 +128,42 @@ int main(int argc, const char *argv[]) {
   Str projectName = argv[2];
 
   if (action != "create") {
-    std::cerr << "Action not found: " << action << '\n';
+    std::cerr << "Unknown action: " << action << "\n";
+    return EXIT_FAILURE;
+  }
+
+  if (!validate_project_name(projectName)) {
     return EXIT_FAILURE;
   }
 
   char cwd[512];
   if (getcwd(cwd, sizeof(cwd)) == nullptr) {
-    std::cerr << "Can't get actual directory\n";
+    std::cerr << "Failed to get current working directory.\n";
     return EXIT_FAILURE;
   }
 
   Str projectPath = Str(cwd) + "/" + projectName;
 
-  build_root_directory(projectPath);
-  build_source_directory(projectPath);
-  build_include_directory(projectPath);
-  build_make_file(projectPath, projectName);
-  build_entry_point_header(projectPath, projectName);
-  build_entry_point_source(projectPath, projectName);
+  create_directory(projectPath);
 
-  std::cout << "Project \"" << projectName
-            << "\" created: [path: " << projectPath << "]\n";
+  create_directory(projectPath + "/src");
+  create_directory(projectPath + "/include");
+
+  Str makefileContent = makefileTemplate;
+  replace_sub_str(makefileContent, "{projectName}", projectName);
+  safe_create_file(projectPath + "/Makefile", makefileContent);
+
+  Str headerContent = headerTemplate;
+  replace_sub_str(headerContent, "{projectName}", projectName);
+  safe_create_file(projectPath + "/include/" + projectName + ".hpp",
+                   headerContent);
+
+  Str sourceContent = sourceTemplate;
+  replace_sub_str(sourceContent, "{projectName}", projectName);
+  safe_create_file(projectPath + "/src/" + projectName + ".cpp", sourceContent);
+
+  std::cout << "Project '" << projectName
+            << "' created successfully at: " << projectPath << "\n";
 
   return 0;
 }
