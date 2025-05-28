@@ -125,7 +125,7 @@ void build_entry_point_source(const Str &dir, const Str &projectName) {
 
 int main(int argc, const char *argv[]) {
   if (argc < 3) {
-    std::cerr << "Uso: bs create <nombre_proyecto>\n";
+    std::cerr << "Use: bs create <project_name>\n";
     return EXIT_FAILURE;
   }
 
@@ -133,13 +133,13 @@ int main(int argc, const char *argv[]) {
   Str projectName = argv[2];
 
   if (action != "create") {
-    std::cerr << "Acción desconocida: " << action << '\n';
+    std::cerr << "Action not found: " << action << '\n';
     return EXIT_FAILURE;
   }
 
   char cwd[512];
   if (getcwd(cwd, sizeof(cwd)) == nullptr) {
-    std::cerr << "No se pudo obtener el directorio actual\n";
+    std::cerr << "Can't get actual directory\n";
     return EXIT_FAILURE;
   }
 
