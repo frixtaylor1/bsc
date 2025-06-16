@@ -19,7 +19,7 @@ ASMFLAGS = -f elf64
 
 SRC_DIR = src
 BUILD_DIR = .build
-BIN = $(BUILD_DIR)/alloc
+BIN = $(BUILD_DIR)/{projectName}
 
 SRCS = $(wildcard $(SRC_DIR)/*.cpp)
 ASMS = $(wildcard $(SRC_DIR)/*.asm)
